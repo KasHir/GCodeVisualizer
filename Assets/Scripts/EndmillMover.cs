@@ -6,6 +6,7 @@ public class EndmillMover : MonoBehaviour
     void Start()
     {
         transform.position = new Vector3(0, 0, 0);
+        Debug.Log("Hello World");
     }
 
     // Update is called once per frame
@@ -13,5 +14,6 @@ public class EndmillMover : MonoBehaviour
     {
         transform.position = Vector3.MoveTowards(
             transform.position, new Vector3(1, 0, 0), Time.deltaTime);
+        Debug.Log($"Current position: {transform.position}");
     }
 }
