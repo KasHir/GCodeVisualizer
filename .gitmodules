@@ -1,0 +1,6 @@
+[submodule "Assets/Plugins/gsGCode"]
+	path = Assets/Plugins/gsGCode
+	url = https://github.com/gradientspace/gsGCode.git
+[submodule "Assets/Plugins/geometry3Sharp"]
+	path = Assets/Plugins/geometry3Sharp
+	url = https://github.com/gradientspace/geometry3Sharp.git
