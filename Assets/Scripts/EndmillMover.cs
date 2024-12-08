@@ -1,28 +1,47 @@
 using UnityEngine;
 using System.IO;
+//using System.Collections.Generic;
+using gs;
 
 public class EndmillMover : MonoBehaviour
 {
-    // Start is called once before the first execution of Update
-    // after the MonoBehaviour is created
+    public string gcodeFilePath = "Assets/gcode/test.cnc";
+    private GenericGCodeParser gcodeParser;
+
     void Start()
     {
-        transform.position = new Vector3(0, 0, 0);
-        Debug.Log("Hello World");
+        gcodeParser = new GenericGCodeParser();
+        string gcodeText = File.ReadAllText(gcodeFilePath);
 
-        // Read the gcode/test.cnc file line by line and log each line
-        string path = "Assets/gcode/test.cnc";
-        if (File.Exists(path))
+        using (StringReader reader = new StringReader(gcodeText))
         {
-            string[] lines = File.ReadAllLines(path);
-            foreach (string line in lines)
+            GCodeFile gcodeFile = gcodeParser.Parse(reader);
+
+            foreach (var line in gcodeFile.AllLines())
             {
-                Debug.Log(line);
+                Debug.Log($"Processing GCode Line: {line.parameters}");
+                Debug.Log($"{line.orig_string}");
+                Debug.Log($"linenumber: {line.lineNumber}");
+                Debug.Log($"N: {line.N}");
+                Debug.Log($"G: {line.code}");
+
+                //List<int> gCodesInLine = new List<int>();
+
+                if (line.parameters != null)
+                {
+                    foreach (var param in line.parameters)
+                    {
+                        Debug.Log($"Param ID: {param.identifier}");
+                        Debug.Log($"Param Value: {param.doubleValue}");
+                        //if (param.identifier == "G")
+                        //{
+                        //    int gcodeValue = param.intValue;
+                        //    gCodesInLine.Add(gcodeValue);
+                        //}
+                    }
+                }
             }
-        }
-        else
-        {
-            Debug.LogError("File not found: " + path);
+
         }
     }
 

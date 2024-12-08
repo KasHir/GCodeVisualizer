@@ -567,6 +567,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 513826cbfbf25254888b9c6b7a0d0db4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  gcodeFilePath: Assets/gcode/test.cnc
 --- !u!136 &1966855523
 CapsuleCollider:
   m_ObjectHideFlags: 0
