@@ -8,6 +8,16 @@ public class EndmillMover : MonoBehaviour
     public string gcodeFilePath = "Assets/gcode/test.cnc";
     private GenericGCodeParser gcodeParser;
 
+    private Vector3 ConvertToUnityCoordinates(Vector3 gcodePosition)
+    {
+        return new Vector3(gcodePosition.x, gcodePosition.z, gcodePosition.y);
+    }
+
+    private Vector3 ConvertToGCodeCoordinates(Vector3 unityPosition)
+    {
+        return new Vector3(unityPosition.x, unityPosition.z, unityPosition.y);
+    }
+
     void Start()
     {
         gcodeParser = new GenericGCodeParser();
