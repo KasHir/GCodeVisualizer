@@ -205,16 +205,14 @@ public class EndmillMover : MonoBehaviour
         float y = currentGCodePosition.y;
         float z = currentGCodePosition.z;
 
-        foreach (var param in line.parameters)
-        {
-            if (param.identifier == "X")
-                x = isAbsoluteMode ? (float)param.doubleValue
-                 : x + (float)param.doubleValue;
-            else if (param.identifier == "Y")
-                y = isAbsoluteMode ? (float)param.doubleValue : y + (float)param.doubleValue;
-            else if (param.identifier == "Z")
-                z = isAbsoluteMode ? (float)param.doubleValue : z + (float)param.doubleValue;
-        }
+        Dictionary<string, double> parameters = CacheParameters(line);
+
+        if (parameters.ContainsKey("X"))
+            x = isAbsoluteMode ? (float)parameters["X"] : x + (float)parameters["X"];
+        if (parameters.ContainsKey("Y"))
+            y = isAbsoluteMode ? (float)parameters["Y"] : y + (float)parameters["Y"];
+        if (parameters.ContainsKey("Z"))
+            z = isAbsoluteMode ? (float)parameters["Z"] : z + (float)parameters["Z"];
 
         return new Vector3(x, y, z);
     }
@@ -222,12 +220,23 @@ public class EndmillMover : MonoBehaviour
     private float GetFeedRate(GCodeLine line)
     {
         float feedRate = defaultFeedRate;
+
+        Dictionary<string, double> parameters = CacheParameters(line);
+
+        if (parameters.ContainsKey("F"))
+            feedRate = (float)parameters["F"];
+
+        return feedRate;
+    }
+
+    private Dictionary<string, double> CacheParameters(GCodeLine line)
+    {
+        Dictionary<string, double> parameters = new Dictionary<string, double>();
         foreach (var param in line.parameters)
         {
-            if (param.identifier == "F")
-                feedRate = (float)param.doubleValue;
+            parameters[param.identifier] = param.doubleValue;
         }
-        return feedRate;
+        return parameters;
     }
 
 }
