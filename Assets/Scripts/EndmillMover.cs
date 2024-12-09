@@ -9,6 +9,7 @@ public class EndmillMover : MonoBehaviour
     public string gcodeFilePath = "Assets/gcode/test.cnc";
     private GenericGCodeParser gcodeParser;
     private IEnumerator gcodeRoutine;
+    private float SCALE = 0.5f; // Coordinate scaling factor
 
     // G-code modal state
     private bool isAbsoluteMode = true;
@@ -20,12 +21,14 @@ public class EndmillMover : MonoBehaviour
 
     private Vector3 ConvertToUnityCoordinates(Vector3 gcodePosition)
     {
-        return new Vector3(gcodePosition.x, gcodePosition.z, gcodePosition.y);
+        Vector3 position = new Vector3(gcodePosition.x, gcodePosition.z, gcodePosition.y);
+        return position * SCALE;
     }
 
     private Vector3 ConvertToGCodeCoordinates(Vector3 unityPosition)
     {
-        return new Vector3(unityPosition.x, unityPosition.z, unityPosition.y);
+        Vector3 position = new Vector3(unityPosition.x, unityPosition.z, unityPosition.y);
+        return position / SCALE;
     }
 
     private IEnumerator MoveToPosition(Vector3 targetPosition, float moveTime)
@@ -205,7 +208,8 @@ public class EndmillMover : MonoBehaviour
         foreach (var param in line.parameters)
         {
             if (param.identifier == "X")
-                x = isAbsoluteMode ? (float)param.doubleValue : x + (float)param.doubleValue;
+                x = isAbsoluteMode ? (float)param.doubleValue
+                 : x + (float)param.doubleValue;
             else if (param.identifier == "Y")
                 y = isAbsoluteMode ? (float)param.doubleValue : y + (float)param.doubleValue;
             else if (param.identifier == "Z")
@@ -223,7 +227,7 @@ public class EndmillMover : MonoBehaviour
             if (param.identifier == "F")
                 feedRate = (float)param.doubleValue;
         }
-        return feedRate * 10f;
+        return feedRate;
     }
 
 }
