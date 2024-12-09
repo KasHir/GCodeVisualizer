@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.IO;
 //using System.Collections.Generic;
 using gs;
@@ -16,6 +17,23 @@ public class EndmillMover : MonoBehaviour
     private Vector3 ConvertToGCodeCoordinates(Vector3 unityPosition)
     {
         return new Vector3(unityPosition.x, unityPosition.z, unityPosition.y);
+    }
+
+    private IEnumerator MoveToPosition(Vector3 targetPosition, float moveTime)
+    {
+        Vector3 startPosition = transform.position;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < moveTime)
+        {
+            transform.position = Vector3.Lerp(
+                startPosition, targetPosition, elapsedTime / moveTime);
+            elapsedTime += Time.deltaTime;
+
+            yield return null;
+        }
+
+        transform.position = targetPosition;
     }
 
     void Start()
