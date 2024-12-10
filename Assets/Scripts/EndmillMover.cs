@@ -92,7 +92,7 @@ public class EndmillMover : MonoBehaviour
             {
                 foreach (var param in line.parameters)
                 {
-                    UnityEngine.Debug.Log($"Param: {param.identifier} = {param.doubleValue}");
+                    Debug.Log($"Param: {param.identifier} = {param.doubleValue}");
                     if (param.identifier == "G")
                     {
                         int gcodeValue = param.intValue;
