@@ -3,6 +3,8 @@ using System.Collections;
 using System.IO;
 using System.Collections.Generic;
 using gs;
+using System.Linq;
+using System;
 
 public class EndmillMover : MonoBehaviour
 {
@@ -18,6 +20,10 @@ public class EndmillMover : MonoBehaviour
     // G-code position and Speed state
     private Vector3 currentGCodePosition;
     private float defaultFeedRate = 400f;
+
+    // LineRenderer
+    private LineRenderer lineRenderer;
+    private List<Vector3> positions = new List<Vector3>();
 
     private Vector3 ConvertToUnityCoordinates(Vector3 gcodePosition)
     {
@@ -42,14 +48,32 @@ public class EndmillMover : MonoBehaviour
                 startPosition, targetPosition, elapsedTime / moveTime);
             elapsedTime += Time.deltaTime;
 
+            RecordPosition();
             yield return null;
         }
 
         transform.position = targetPosition;
+        RecordPosition();
+    }
+
+    private void RecordPosition()
+    {
+        // Calculate the position at the bottom of the cylinder
+        Vector3 cylinderHeightOffset = transform.up * transform.localScale.y;
+        Vector3 cylinderEndPosition = transform.position - cylinderHeightOffset;
+
+        positions.Add(cylinderEndPosition);
+        lineRenderer.positionCount = positions.Count;
+        lineRenderer.SetPositions(positions.ToArray());
     }
 
     void Start()
     {
+        // LineRendererの初期化
+        lineRenderer = GetComponent<LineRenderer>();
+        RecordPosition();
+
+        // G-codeファイルの読み込み
         gcodeParser = new GenericGCodeParser();
         string gcodeText = File.ReadAllText(gcodeFilePath);
 
@@ -175,7 +199,7 @@ public class EndmillMover : MonoBehaviour
                     break;
                 case 2:
                 case 3:
-                    //yield return HandleArcMove(line);
+                    yield return HandleArcMove(line);
                     break;
                 default:
                     Debug.Log($"Unsupported motion command: G{motionCommand}");
@@ -197,6 +221,111 @@ public class EndmillMover : MonoBehaviour
         float moveTime = distance / (feedRate / 60f);
 
         yield return StartCoroutine(MoveToPosition(targetPosition, moveTime));
+    }
+
+    private IEnumerator HandleArcMove(GCodeLine line)
+    {
+        bool isClockwise = line.code == 2 || line.parameters.Any(p => p.identifier == "G" && p.intValue == 2);
+        Vector3 targetGCodePosition = GetTargetPosition(line);
+        Vector3 centerOffset = GetCenterOffset(line);
+
+        Vector3 startPos = currentGCodePosition;
+        Vector3 endPos = targetGCodePosition;
+        Vector3 centerPos = startPos + centerOffset;
+
+        currentGCodePosition = endPos;
+
+        Vector3 unityStartPos = ConvertToUnityCoordinates(startPos);
+        Vector3 unityEndPos = ConvertToUnityCoordinates(endPos);
+        Vector3 unityCenterPos = ConvertToUnityCoordinates(centerPos);
+
+        Vector3 planeNormal = ConvertToUnityCoordinates(GetPlaneNormal());
+
+        float helixHeight = endPos.y - startPos.y; // Calculate the height difference for helix
+        UnityEngine.Debug.Log($"Helix Height: {helixHeight}");
+
+        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isClockwise, planeNormal, helixHeight));
+    }
+
+    private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos, bool isClockwise, Vector3 planeNormal, float helixHeight)
+    {
+        Vector3 startVector = startPos - centerPos; // Unity coordinates
+        Vector3 endVector = endPos - centerPos;
+        float radius = startVector.magnitude;
+
+        // Use the provided plane normal instead of calculating it
+        Vector3 normal = planeNormal.normalized;
+        UnityEngine.Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
+
+        // Calculate the angle between the start and end vectors
+        float angle = Vector3.SignedAngle(startVector, endVector, normal);
+        if (angle < 0)
+        {
+            UnityEngine.Debug.Log($"Angle: {angle} is less than -180. Adding 360.");
+            angle += 360f;
+        }
+        UnityEngine.Debug.Log($"Angle: {angle}");
+
+        if (isClockwise)
+            angle = -angle;
+
+        float moveTime = 2f;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < moveTime)
+        {
+            float t = elapsedTime / moveTime;
+            float currentAngle = Mathf.Lerp(0, angle, t);
+
+            // Rotate the start vector around the normal vector by the current angle
+            Quaternion rotation = Quaternion.AngleAxis(currentAngle, normal);
+            Vector3 offset = rotation * startVector;
+            float currentHeight = Mathf.Lerp(startPos.y, endPos.y, t); // Linear interpolation for height
+
+            Vector3 helixPosition = centerPos + offset;
+            helixPosition.y = currentHeight; // Adjust the height for helix
+
+            transform.position = helixPosition;
+            elapsedTime += Time.deltaTime;
+
+            RecordPosition();
+            yield return null;
+        }
+
+        transform.position = endPos;
+        RecordPosition();
+    }
+
+    private Vector3 GetCenterOffset(GCodeLine line)
+    {
+        float i = 0f, j = 0f, k = 0f;
+
+        foreach (var param in line.parameters)
+        {
+            if (param.identifier == "I")
+                i = (float)param.doubleValue;
+            else if (param.identifier == "J")
+                j = (float)param.doubleValue;
+            else if (param.identifier == "K")
+                k = (float)param.doubleValue;
+        }
+
+        return new Vector3(i, j, k);
+    }
+
+    private Vector3 GetPlaneNormal()
+    {
+        switch (currentPlane)
+        {
+            case "XY":
+                return Vector3.back; // - Z axis
+            case "XZ":
+                return Vector3.up; // Y axis
+            case "YZ":
+                return Vector3.left; // - X axis
+            default:
+                return Vector3.back; // Default to XY plane
+        }
     }
 
     private Vector3 GetTargetPosition(GCodeLine line)
