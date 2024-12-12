@@ -228,10 +228,12 @@ public class EndmillMover : MonoBehaviour
         bool isClockwise = line.code == 2 || line.parameters.Any(p => p.identifier == "G" && p.intValue == 2);
         Vector3 targetGCodePosition = GetTargetPosition(line);
         Vector3 centerOffset = GetCenterOffset(line);
+        Debug.Log($"Center Offset: {centerOffset}");
 
         Vector3 startPos = currentGCodePosition;
         Vector3 endPos = targetGCodePosition;
         Vector3 centerPos = startPos + centerOffset;
+        Debug.Log($"Start: {startPos}, End: {endPos}, Center: {centerPos}");
 
         currentGCodePosition = endPos;
 
@@ -239,35 +241,45 @@ public class EndmillMover : MonoBehaviour
         Vector3 unityEndPos = ConvertToUnityCoordinates(endPos);
         Vector3 unityCenterPos = ConvertToUnityCoordinates(centerPos);
 
-        Vector3 planeNormal = ConvertToUnityCoordinates(GetPlaneNormal());
+        Vector3 planeNormal = ConvertToUnityCoordinates(GetPlaneNormal()).normalized;
 
-        float helixHeight = endPos.y - startPos.y; // Calculate the height difference for helix
-        UnityEngine.Debug.Log($"Helix Height: {helixHeight}");
+        Vector3 helixVector = ConvertToUnityCoordinates(endPos - startPos);
+        Vector3 helixHeightVector = Vector3.Dot(helixVector, planeNormal) * planeNormal;
+        Debug.Log($"Helix helixHeightVector: {helixHeightVector}");
 
-        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isClockwise, planeNormal, helixHeight));
+        Debug.Log($"Helix Height Vector: {helixHeightVector}");
+
+        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isClockwise, planeNormal, helixHeightVector));
     }
 
-    private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos, bool isClockwise, Vector3 planeNormal, float helixHeight)
+    private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos,
+                                        bool isClockwise, Vector3 planeNormal, Vector3 helixHeightVector)
     {
         Vector3 startVector = startPos - centerPos; // Unity coordinates
         Vector3 endVector = endPos - centerPos;
         float radius = startVector.magnitude;
+        Debug.Log($"centerPos: {centerPos}");
+        Debug.Log($"Radius: {radius}");
 
         // Use the provided plane normal instead of calculating it
         Vector3 normal = planeNormal.normalized;
-        UnityEngine.Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
+        Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
+
+        if (isClockwise)
+            normal = -normal;
 
         // Calculate the angle between the start and end vectors
         float angle = Vector3.SignedAngle(startVector, endVector, normal);
-        if (angle < 0)
-        {
-            UnityEngine.Debug.Log($"Angle: {angle} is less than -180. Adding 360.");
-            angle += 360f;
-        }
-        UnityEngine.Debug.Log($"Angle: {angle}");
 
-        if (isClockwise)
-            angle = -angle;
+        Debug.Log($"Angle: {angle}");
+
+        if (angle >= 0)
+        {
+            Debug.Log($"Angle: {angle} is less than -180. Adding 360.");
+            angle -= 360f;
+        }
+
+        Debug.Log($"Angle: {angle}");
 
         float moveTime = 2f;
         float elapsedTime = 0f;
@@ -280,10 +292,11 @@ public class EndmillMover : MonoBehaviour
             // Rotate the start vector around the normal vector by the current angle
             Quaternion rotation = Quaternion.AngleAxis(currentAngle, normal);
             Vector3 offset = rotation * startVector;
-            float currentHeight = Mathf.Lerp(startPos.y, endPos.y, t); // Linear interpolation for height
 
-            Vector3 helixPosition = centerPos + offset;
-            helixPosition.y = currentHeight; // Adjust the height for helix
+            // Linear interpolation for helix height
+            Vector3 currentHeight = Vector3.Lerp(Vector3.zero, helixHeightVector, t);
+
+            Vector3 helixPosition = centerPos + offset + currentHeight;
 
             transform.position = helixPosition;
             elapsedTime += Time.deltaTime;
@@ -318,13 +331,13 @@ public class EndmillMover : MonoBehaviour
         switch (currentPlane)
         {
             case "XY":
-                return Vector3.back; // - Z axis
+                return Vector3.forward; // Z axis
             case "XZ":
                 return Vector3.up; // Y axis
             case "YZ":
-                return Vector3.left; // - X axis
+                return Vector3.right; // X axis
             default:
-                return Vector3.back; // Default to XY plane
+                return Vector3.forward; // Default to XY plane
         }
     }
 
