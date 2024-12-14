@@ -244,21 +244,24 @@ public class EndmillMover : MonoBehaviour
         Vector3 unityEndPos = ConvertToUnityCoordinates(endPos);
         Vector3 unityCenterPos = ConvertToUnityCoordinates(centerPos);
 
-        Vector3 planeNormal = ConvertToUnityCoordinates(GetPlaneNormal()).normalized;
-
         Vector3 helixVector = ConvertToUnityCoordinates(endPos - startPos);
+        Vector3 planeNormal = ConvertToUnityCoordinates(GetPlaneNormal()).normalized;
         Vector3 helixHeightVector = Vector3.Dot(helixVector, planeNormal) * planeNormal;
 
         float feedRate = GetFeedRate(line);
         float unityFeedRate = feedRate * SCALE;
 
-        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isCounterClockwise, planeNormal, helixHeightVector, unityFeedRate));
+        yield return StartCoroutine(
+            MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos,
+                            isCounterClockwise, planeNormal,
+                            helixHeightVector, unityFeedRate));
     }
 
     private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos,
-                                        bool isCounterClockwise, Vector3 planeNormal, Vector3 helixHeightVector, float unityFeedRate)
+                                        bool isCounterClockwise, Vector3 planeNormal,
+                                        Vector3 helixHeightVector, float unityFeedRate)
     {
-        Vector3 startVector = startPos - centerPos; // Unity coordinates
+        Vector3 startVector = startPos - centerPos;
         Vector3 endVector = endPos - centerPos;
         float radius = startVector.magnitude;
         Debug.Log($"centerPos: {centerPos}");
