@@ -100,11 +100,10 @@ public class EndmillMover : MonoBehaviour
         foreach (var line in gcodeFile.AllLines())
         {
 
-            Debug.Log($"Processing GCode Line: {line.parameters}");
-            //Debug.Log($"{line.orig_string}");
+            Debug.Log($"{line.orig_string}");
             Debug.Log($"linenumber: {line.lineNumber}");
             //Debug.Log($"N: {line.N}");
-            Debug.Log($"G: {line.code}");
+            //Debug.Log($"G: {line.code}");
 
             // Gコマンドの抽出
             List<int> gCodesInLine = new List<int>();
@@ -229,9 +228,7 @@ public class EndmillMover : MonoBehaviour
 
     private IEnumerator HandleArcMove(GCodeLine line, int moioncommand)
     {
-
-        //bool isClockwise = line.code == 2 || line.parameters.Any(p => p.identifier == "G" && p.intValue == 2);
-        bool isClockwise = moioncommand == 2;
+        bool isCounterClockwise = moioncommand == 3;
         Vector3 targetGCodePosition = GetTargetPosition(line);
         Vector3 centerOffset = GetCenterOffset(line);
         Debug.Log($"Center Offset: {centerOffset}");
@@ -251,15 +248,12 @@ public class EndmillMover : MonoBehaviour
 
         Vector3 helixVector = ConvertToUnityCoordinates(endPos - startPos);
         Vector3 helixHeightVector = Vector3.Dot(helixVector, planeNormal) * planeNormal;
-        //Debug.Log($"Helix helixHeightVector: {helixHeightVector}");
 
-        //Debug.Log($"Helix Height Vector: {helixHeightVector}");
-
-        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isClockwise, planeNormal, helixHeightVector));
+        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isCounterClockwise, planeNormal, helixHeightVector));
     }
 
     private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos,
-                                        bool isClockwise, Vector3 planeNormal, Vector3 helixHeightVector)
+                                        bool isCounterClockwise, Vector3 planeNormal, Vector3 helixHeightVector)
     {
         Vector3 startVector = startPos - centerPos; // Unity coordinates
         Vector3 endVector = endPos - centerPos;
@@ -270,14 +264,13 @@ public class EndmillMover : MonoBehaviour
         // Use the provided plane normal instead of calculating it
         Vector3 normal = planeNormal.normalized;
         Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
-        Debug.Log($"isclockwise: {isClockwise}");
+        Debug.Log($"isCounterclockwise: {isCounterClockwise}");
 
-        if (isClockwise == false)
+        if (isCounterClockwise)
             normal = -normal;
 
         // Calculate the angle between the start and end vectors
         float angle = Vector3.SignedAngle(startVector, endVector, normal);
-
 
         Debug.Log($"Angle: {angle}");
 
