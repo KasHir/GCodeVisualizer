@@ -11,7 +11,7 @@ public class EndmillMover : MonoBehaviour
     public string gcodeFilePath = "Assets/gcode/test.cnc";
     private GenericGCodeParser gcodeParser;
     private IEnumerator gcodeRoutine;
-    private float SCALE = 0.1f; // Coordinate scaling factor
+    private float SCALE = 0.5f; // Coordinate scaling factor
 
     // G-code modal state
     private bool isAbsoluteMode = true;
@@ -19,7 +19,7 @@ public class EndmillMover : MonoBehaviour
 
     // G-code position and Speed state
     private Vector3 currentGCodePosition;
-    private float defaultFeedRate = 1800f;
+    private float lastFeedRate = 1800f; // 最後に指定されたFパラメータを保持
 
     // LineRenderer
     private LineRenderer lineRenderer;
@@ -226,9 +226,9 @@ public class EndmillMover : MonoBehaviour
         yield return StartCoroutine(MoveToPosition(targetPosition, moveTime));
     }
 
-    private IEnumerator HandleArcMove(GCodeLine line, int moioncommand)
+    private IEnumerator HandleArcMove(GCodeLine line, int motionCommand)
     {
-        bool isCounterClockwise = moioncommand == 3;
+        bool isCounterClockwise = motionCommand == 3;
         Vector3 targetGCodePosition = GetTargetPosition(line);
         Vector3 centerOffset = GetCenterOffset(line);
         Debug.Log($"Center Offset: {centerOffset}");
@@ -249,11 +249,14 @@ public class EndmillMover : MonoBehaviour
         Vector3 helixVector = ConvertToUnityCoordinates(endPos - startPos);
         Vector3 helixHeightVector = Vector3.Dot(helixVector, planeNormal) * planeNormal;
 
-        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isCounterClockwise, planeNormal, helixHeightVector));
+        float feedRate = GetFeedRate(line);
+        float unityFeedRate = feedRate * SCALE;
+
+        yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isCounterClockwise, planeNormal, helixHeightVector, unityFeedRate));
     }
 
     private IEnumerator MoveAlongHelix(Vector3 startPos, Vector3 endPos, Vector3 centerPos,
-                                        bool isCounterClockwise, Vector3 planeNormal, Vector3 helixHeightVector)
+                                        bool isCounterClockwise, Vector3 planeNormal, Vector3 helixHeightVector, float unityFeedRate)
     {
         Vector3 startVector = startPos - centerPos; // Unity coordinates
         Vector3 endVector = endPos - centerPos;
@@ -280,10 +283,10 @@ public class EndmillMover : MonoBehaviour
             angle += 360f;
         }
 
-
         Debug.Log($"Angle: {angle}");
 
-        float moveTime = 0.5f;
+        float arcLength = Mathf.Deg2Rad * angle * radius;
+        float moveTime = arcLength / (unityFeedRate / 60f);
         float elapsedTime = 0f;
 
         while (elapsedTime < moveTime)
@@ -363,14 +366,14 @@ public class EndmillMover : MonoBehaviour
 
     private float GetFeedRate(GCodeLine line)
     {
-        float feedRate = defaultFeedRate;
-
         Dictionary<string, double> parameters = CacheParameters(line);
 
         if (parameters.ContainsKey("F"))
-            feedRate = (float)parameters["F"];
-
-        return feedRate;
+        {
+            lastFeedRate = (float)parameters["F"];
+        }
+        Debug.Log($"Feed Rate: {lastFeedRate}");
+        return lastFeedRate;
     }
 
     private Dictionary<string, double> CacheParameters(GCodeLine line)
