@@ -11,7 +11,7 @@ public class EndmillMover : MonoBehaviour
     public string gcodeFilePath = "Assets/gcode/test.cnc";
     private GenericGCodeParser gcodeParser;
     private IEnumerator gcodeRoutine;
-    private float SCALE = 0.5f; // Coordinate scaling factor
+    private float SCALE = 0.1f; // Coordinate scaling factor
 
     // G-code modal state
     private bool isAbsoluteMode = true;
@@ -19,7 +19,7 @@ public class EndmillMover : MonoBehaviour
 
     // G-code position and Speed state
     private Vector3 currentGCodePosition;
-    private float defaultFeedRate = 400f;
+    private float defaultFeedRate = 1800f;
 
     // LineRenderer
     private LineRenderer lineRenderer;
@@ -101,9 +101,9 @@ public class EndmillMover : MonoBehaviour
         {
 
             Debug.Log($"Processing GCode Line: {line.parameters}");
-            Debug.Log($"{line.orig_string}");
+            //Debug.Log($"{line.orig_string}");
             Debug.Log($"linenumber: {line.lineNumber}");
-            Debug.Log($"N: {line.N}");
+            //Debug.Log($"N: {line.N}");
             Debug.Log($"G: {line.code}");
 
             // Gコマンドの抽出
@@ -116,7 +116,7 @@ public class EndmillMover : MonoBehaviour
             {
                 foreach (var param in line.parameters)
                 {
-                    Debug.Log($"Param: {param.identifier} = {param.doubleValue}");
+                    //Debug.Log($"Param: {param.identifier} = {param.doubleValue}");
                     if (param.identifier == "G")
                     {
                         int gcodeValue = param.intValue;
@@ -190,20 +190,24 @@ public class EndmillMover : MonoBehaviour
             }
 
             // 動作コマンドを実行
-            switch (motionCommand)
+            if (line.parameters != null)
             {
-                case 0:
-                case 1:
-                    Debug.Log($"Linear Move: {line.parameters}");
-                    yield return HandleLinearMove(line);
-                    break;
-                case 2:
-                case 3:
-                    yield return HandleArcMove(line);
-                    break;
-                default:
-                    Debug.Log($"Unsupported motion command: G{motionCommand}");
-                    break;
+                switch (motionCommand)
+                {
+                    case 0:
+                    case 1:
+                        Debug.Log($"Linear Move: {line.parameters}");
+                        yield return HandleLinearMove(line);
+                        break;
+                    case 2:
+                    case 3:
+                        Debug.Log($"Arc Move: {motionCommand}");
+                        yield return HandleArcMove(line, motionCommand);
+                        break;
+                    default:
+                        Debug.Log($"Unsupported motion command: G{motionCommand}");
+                        break;
+                }
             }
 
             yield return null;
@@ -223,9 +227,11 @@ public class EndmillMover : MonoBehaviour
         yield return StartCoroutine(MoveToPosition(targetPosition, moveTime));
     }
 
-    private IEnumerator HandleArcMove(GCodeLine line)
+    private IEnumerator HandleArcMove(GCodeLine line, int moioncommand)
     {
-        bool isClockwise = line.code == 2 || line.parameters.Any(p => p.identifier == "G" && p.intValue == 2);
+
+        //bool isClockwise = line.code == 2 || line.parameters.Any(p => p.identifier == "G" && p.intValue == 2);
+        bool isClockwise = moioncommand == 2;
         Vector3 targetGCodePosition = GetTargetPosition(line);
         Vector3 centerOffset = GetCenterOffset(line);
         Debug.Log($"Center Offset: {centerOffset}");
@@ -245,9 +251,9 @@ public class EndmillMover : MonoBehaviour
 
         Vector3 helixVector = ConvertToUnityCoordinates(endPos - startPos);
         Vector3 helixHeightVector = Vector3.Dot(helixVector, planeNormal) * planeNormal;
-        Debug.Log($"Helix helixHeightVector: {helixHeightVector}");
+        //Debug.Log($"Helix helixHeightVector: {helixHeightVector}");
 
-        Debug.Log($"Helix Height Vector: {helixHeightVector}");
+        //Debug.Log($"Helix Height Vector: {helixHeightVector}");
 
         yield return StartCoroutine(MoveAlongHelix(unityStartPos, unityEndPos, unityCenterPos, isClockwise, planeNormal, helixHeightVector));
     }
@@ -264,24 +270,27 @@ public class EndmillMover : MonoBehaviour
         // Use the provided plane normal instead of calculating it
         Vector3 normal = planeNormal.normalized;
         Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
+        Debug.Log($"isclockwise: {isClockwise}");
 
-        if (isClockwise)
+        if (isClockwise == false)
             normal = -normal;
 
         // Calculate the angle between the start and end vectors
         float angle = Vector3.SignedAngle(startVector, endVector, normal);
 
+
         Debug.Log($"Angle: {angle}");
 
-        if (angle >= 0)
+        if (angle <= 0)
         {
             Debug.Log($"Angle: {angle} is less than -180. Adding 360.");
-            angle -= 360f;
+            angle += 360f;
         }
+
 
         Debug.Log($"Angle: {angle}");
 
-        float moveTime = 2f;
+        float moveTime = 0.5f;
         float elapsedTime = 0f;
 
         while (elapsedTime < moveTime)
