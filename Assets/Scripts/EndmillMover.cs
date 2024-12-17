@@ -3,8 +3,6 @@ using System.Collections;
 using System.IO;
 using System.Collections.Generic;
 using gs;
-using System.Linq;
-using System;
 
 public class EndmillMover : MonoBehaviour
 {
@@ -19,9 +17,9 @@ public class EndmillMover : MonoBehaviour
 
     // G-code position and Speed state
     private Vector3 currentGCodePosition;
-    private float lastFeedRate = 1800f; // 最後に指定されたFパラメータを保持
+    private float lastFeedRate = 800f; // 最後に指定されたFパラメータを保持
 
-    // LineRenderer
+    // LineRenderer for Toolpath Visualization
     private LineRenderer lineRenderer;
     private List<Vector3> positions = new List<Vector3>();
 
@@ -37,25 +35,6 @@ public class EndmillMover : MonoBehaviour
         return position / SCALE;
     }
 
-    private IEnumerator MoveToPosition(Vector3 targetPosition, float moveTime)
-    {
-        Vector3 startPosition = transform.position;
-        float elapsedTime = 0f;
-
-        while (elapsedTime < moveTime)
-        {
-            transform.position = Vector3.Lerp(
-                startPosition, targetPosition, elapsedTime / moveTime);
-            elapsedTime += Time.deltaTime;
-
-            RecordPosition();
-            yield return null;
-        }
-
-        transform.position = targetPosition;
-        RecordPosition();
-    }
-
     private void RecordPosition()
     {
         // Calculate the position at the bottom of the cylinder
@@ -69,15 +48,15 @@ public class EndmillMover : MonoBehaviour
 
     void Start()
     {
-        // LineRendererの初期化
+        // Initialize LineRenderer for Toolpath Visualization
         lineRenderer = GetComponent<LineRenderer>();
         RecordPosition();
 
-        // G-codeファイルの読み込み
+        // Load G-code file and start the coroutine
         gcodeParser = new GenericGCodeParser();
         string gcodeText = File.ReadAllText(gcodeFilePath);
 
-        // Unityでの初期位置をG-code座標系に変換
+        // Convert the current Unity position to G-code coordinates
         currentGCodePosition = ConvertToGCodeCoordinates(transform.position);
 
         using (StringReader reader = new StringReader(gcodeText))
@@ -90,22 +69,17 @@ public class EndmillMover : MonoBehaviour
         }
     }
 
+
     private IEnumerator MoveCylinderAlongGCode(GCodeFile gcodeFile)
     {
-        int previousMotionCommand = -1; // 動作モード (G0, G1, G2, G3)
-        int previousPlaneCommand = 17;  // 平面選択 (G17, G18, G19)
-        int previousDistanceCommand = 90; // 距離モード (G90, G91)
-        int previousFeedrateCommand = 94; // 送り速度モード (G93, G94)
+        int previousMotionCommand = -1; // Liner and arc Motion (G0, G1, G2, G3)
+        int previousPlaneCommand = 17;  // (G17, G18, G19)
+        int previousDistanceCommand = 90; // (G90, G91)
+        int previousFeedrateCommand = 94; // (G93, G94)
 
         foreach (var line in gcodeFile.AllLines())
         {
-
-            Debug.Log($"{line.orig_string}");
-            Debug.Log($"linenumber: {line.lineNumber}");
-            //Debug.Log($"N: {line.N}");
-            //Debug.Log($"G: {line.code}");
-
-            // Gコマンドの抽出
+            // Extract G command from the line
             List<int> gCodesInLine = new List<int>();
             if (line.code != -1)
             {
@@ -115,7 +89,6 @@ public class EndmillMover : MonoBehaviour
             {
                 foreach (var param in line.parameters)
                 {
-                    //Debug.Log($"Param: {param.identifier} = {param.doubleValue}");
                     if (param.identifier == "G")
                     {
                         int gcodeValue = param.intValue;
@@ -124,7 +97,7 @@ public class EndmillMover : MonoBehaviour
                 }
             }
 
-            // モーダルコマンドを処理してモーダル状態を更新
+            // Update modal state
             foreach (int gcode in gCodesInLine)
             {
                 switch (gcode)
@@ -172,7 +145,7 @@ public class EndmillMover : MonoBehaviour
                 }
             }
 
-            // 動作コマンドを決定
+            // Extract motion command from the line
             int motionCommand = -1;
             foreach (int gcode in gCodesInLine)
             {
@@ -183,12 +156,13 @@ public class EndmillMover : MonoBehaviour
                     break;
                 }
             }
+            // Use the previous motion command if the current line does not contain one
             if (motionCommand == -1)
             {
-                motionCommand = previousMotionCommand; // 前回の動作コマンドを使用
+                motionCommand = previousMotionCommand;
             }
 
-            // 動作コマンドを実行
+            // Move the cylinder based on the motion command
             if (line.parameters != null)
             {
                 switch (motionCommand)
@@ -226,17 +200,34 @@ public class EndmillMover : MonoBehaviour
         yield return StartCoroutine(MoveToPosition(targetPosition, moveTime));
     }
 
+    private IEnumerator MoveToPosition(Vector3 targetPosition, float moveTime)
+    {
+        Vector3 startPosition = transform.position;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < moveTime)
+        {
+            transform.position = Vector3.Lerp(
+                startPosition, targetPosition, elapsedTime / moveTime);
+            elapsedTime += Time.deltaTime;
+
+            RecordPosition();
+            yield return null;
+        }
+
+        transform.position = targetPosition;
+        RecordPosition();
+    }
+
     private IEnumerator HandleArcMove(GCodeLine line, int motionCommand)
     {
         bool isCounterClockwise = motionCommand == 3;
         Vector3 targetGCodePosition = GetTargetPosition(line);
         Vector3 centerOffset = GetCenterOffset(line);
-        Debug.Log($"Center Offset: {centerOffset}");
 
         Vector3 startPos = currentGCodePosition;
         Vector3 endPos = targetGCodePosition;
         Vector3 centerPos = startPos + centerOffset;
-        Debug.Log($"Start: {startPos}, End: {endPos}, Center: {centerPos}");
 
         currentGCodePosition = endPos;
 
@@ -264,13 +255,9 @@ public class EndmillMover : MonoBehaviour
         Vector3 startVector = startPos - centerPos;
         Vector3 endVector = endPos - centerPos;
         float radius = startVector.magnitude;
-        Debug.Log($"centerPos: {centerPos}");
-        Debug.Log($"Radius: {radius}");
 
         // Use the provided plane normal instead of calculating it
         Vector3 normal = planeNormal.normalized;
-        Debug.Log($"startVector: {startVector}, endVector: {endVector}, normal: {normal}");
-        Debug.Log($"isCounterclockwise: {isCounterClockwise}");
 
         if (isCounterClockwise)
             normal = -normal;
@@ -278,15 +265,9 @@ public class EndmillMover : MonoBehaviour
         // Calculate the angle between the start and end vectors
         float angle = Vector3.SignedAngle(startVector, endVector, normal);
 
-        Debug.Log($"Angle: {angle}");
-
+        // SignedAngle function returns -180 to 180 degrees, convert to 0 to 360 degrees
         if (angle <= 0)
-        {
-            Debug.Log($"Angle: {angle} is less than -180. Adding 360.");
             angle += 360f;
-        }
-
-        Debug.Log($"Angle: {angle}");
 
         float arcLength = Mathf.Deg2Rad * angle * radius;
         float moveTime = arcLength / (unityFeedRate / 60f);
@@ -305,7 +286,6 @@ public class EndmillMover : MonoBehaviour
             Vector3 currentHeight = Vector3.Lerp(Vector3.zero, helixHeightVector, t);
 
             Vector3 helixPosition = centerPos + offset + currentHeight;
-
             transform.position = helixPosition;
             elapsedTime += Time.deltaTime;
 
@@ -372,10 +352,8 @@ public class EndmillMover : MonoBehaviour
         Dictionary<string, double> parameters = CacheParameters(line);
 
         if (parameters.ContainsKey("F"))
-        {
             lastFeedRate = (float)parameters["F"];
-        }
-        Debug.Log($"Feed Rate: {lastFeedRate}");
+
         return lastFeedRate;
     }
 
@@ -383,9 +361,8 @@ public class EndmillMover : MonoBehaviour
     {
         Dictionary<string, double> parameters = new Dictionary<string, double>();
         foreach (var param in line.parameters)
-        {
             parameters[param.identifier] = param.doubleValue;
-        }
+
         return parameters;
     }
 
